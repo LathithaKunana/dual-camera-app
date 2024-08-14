@@ -4,6 +4,7 @@ import { FaPlay, FaStop, FaDownload } from 'react-icons/fa';
 const DualCameraApp = () => {
   const frontVideoRef = useRef(null);
   const backVideoRef = useRef(null);
+  const canvasRef = useRef(null);
   const [mediaRecorder, setMediaRecorder] = useState(null);
   const [recordedChunks, setRecordedChunks] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
@@ -16,8 +17,36 @@ const DualCameraApp = () => {
       frontVideoRef.current.srcObject = frontStream;
       backVideoRef.current.srcObject = backStream;
 
-      const combinedStream = new MediaStream([...frontStream.getTracks(), ...backStream.getTracks()]);
-      const recorder = new MediaRecorder(combinedStream);
+      // Setup canvas
+      const canvas = canvasRef.current;
+      const ctx = canvas.getContext('2d');
+
+      // Update canvas to draw videos
+      function drawVideos() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw back camera full screen
+        ctx.drawImage(backVideoRef.current, 0, 0, canvas.width, canvas.height);
+
+        // Draw front camera in bottom-right corner
+        const smallWidth = canvas.width * 0.3;
+        const smallHeight = (frontVideoRef.current.videoHeight / frontVideoRef.current.videoWidth) * smallWidth;
+        ctx.drawImage(
+          frontVideoRef.current,
+          canvas.width - smallWidth - 10,
+          canvas.height - smallHeight - 10,
+          smallWidth,
+          smallHeight
+        );
+
+        requestAnimationFrame(drawVideos);
+      }
+
+      drawVideos();
+
+      // Record canvas
+      const stream = canvas.captureStream();
+      const recorder = new MediaRecorder(stream);
       
       recorder.ondataavailable = (e) => {
         setRecordedChunks((prev) => [...prev, e.data]);
@@ -30,13 +59,14 @@ const DualCameraApp = () => {
   }, []);
 
   const startRecording = () => {
-    mediaRecorder.start();
     setIsRecording(true);
+    setRecordedChunks([]); // Reset recorded chunks
+    mediaRecorder.start();
   };
 
   const stopRecording = () => {
-    mediaRecorder.stop();
     setIsRecording(false);
+    mediaRecorder.stop();
   };
 
   const downloadVideo = () => {
@@ -53,20 +83,15 @@ const DualCameraApp = () => {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 p-4">
-      <div className="relative w-full max-w-4xl">
-        <video
-          ref={backVideoRef}
-          autoPlay
-          muted
-          className="w-full rounded-lg shadow-lg"
-        ></video>
-        <video
-          ref={frontVideoRef}
-          autoPlay
-          muted
-          className="absolute w-32 h-32 bottom-4 right-4 rounded-lg shadow-lg border-2 border-white"
-        ></video>
-      </div>
+      <canvas
+        ref={canvasRef}
+        width={1280}
+        height={720}
+        className="w-full rounded-lg shadow-lg"
+      ></canvas>
+      
+      <video ref={backVideoRef} style={{ display: 'none' }}></video>
+      <video ref={frontVideoRef} style={{ display: 'none' }}></video>
 
       <div className="flex space-x-4 mt-6">
         {!isRecording ? (
@@ -88,6 +113,7 @@ const DualCameraApp = () => {
         <button
           onClick={downloadVideo}
           className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200"
+          disabled={recordedChunks.length === 0}
         >
           <FaDownload className="mr-2" /> Download Video
         </button>
