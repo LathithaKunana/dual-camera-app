@@ -11,52 +11,69 @@ const DualCameraApp = () => {
 
   useEffect(() => {
     async function getCameras() {
-      const frontStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-      const backStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      try {
+        const frontStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+        const backStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
 
-      frontVideoRef.current.srcObject = frontStream;
-      backVideoRef.current.srcObject = backStream;
+        frontVideoRef.current.srcObject = frontStream;
+        backVideoRef.current.srcObject = backStream;
 
-      // Setup canvas
-      const canvas = canvasRef.current;
-      const ctx = canvas.getContext('2d');
+        // Ensure videos play before attempting to draw them to canvas
+        frontVideoRef.current.onloadedmetadata = () => {
+          frontVideoRef.current.play();
+          drawVideos();
+        };
+        backVideoRef.current.onloadedmetadata = () => {
+          backVideoRef.current.play();
+        };
 
-      // Update canvas to draw videos
-      function drawVideos() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Setup canvas and recorder
+        const canvas = canvasRef.current;
+        const stream = canvas.captureStream();
+        const recorder = new MediaRecorder(stream);
 
-        // Draw back camera full screen
-        ctx.drawImage(backVideoRef.current, 0, 0, canvas.width, canvas.height);
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            setRecordedChunks((prev) => [...prev, e.data]);
+          }
+        };
 
-        // Draw front camera in bottom-right corner
-        const smallWidth = canvas.width * 0.3;
-        const smallHeight = (frontVideoRef.current.videoHeight / frontVideoRef.current.videoWidth) * smallWidth;
-        ctx.drawImage(
-          frontVideoRef.current,
-          canvas.width - smallWidth - 10,
-          canvas.height - smallHeight - 10,
-          smallWidth,
-          smallHeight
-        );
-
-        requestAnimationFrame(drawVideos);
+        setMediaRecorder(recorder);
+      } catch (error) {
+        console.error("Error accessing cameras:", error);
       }
-
-      drawVideos();
-
-      // Record canvas
-      const stream = canvas.captureStream();
-      const recorder = new MediaRecorder(stream);
-      
-      recorder.ondataavailable = (e) => {
-        setRecordedChunks((prev) => [...prev, e.data]);
-      };
-
-      setMediaRecorder(recorder);
     }
 
     getCameras();
   }, []);
+
+  const drawVideos = () => {
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+
+    // Continuously draw video frames to canvas
+    const drawFrame = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Draw back camera full screen
+      ctx.drawImage(backVideoRef.current, 0, 0, canvas.width, canvas.height);
+
+      // Draw front camera in bottom-right corner
+      const smallWidth = canvas.width * 0.3;
+      const smallHeight = (frontVideoRef.current.videoHeight / frontVideoRef.current.videoWidth) * smallWidth;
+      ctx.drawImage(
+        frontVideoRef.current,
+        canvas.width - smallWidth - 10,
+        canvas.height - smallHeight - 10,
+        smallWidth,
+        smallHeight
+      );
+
+      requestAnimationFrame(drawFrame);
+    };
+
+    requestAnimationFrame(drawFrame);
+  };
 
   const startRecording = () => {
     setIsRecording(true);
@@ -87,9 +104,9 @@ const DualCameraApp = () => {
         ref={canvasRef}
         width={1280}
         height={720}
-        className="w-full rounded-lg shadow-lg"
+        className="w-full rounded-lg shadow-lg bg-black"
       ></canvas>
-      
+
       <video ref={backVideoRef} style={{ display: 'none' }}></video>
       <video ref={frontVideoRef} style={{ display: 'none' }}></video>
 
