@@ -1,101 +1,57 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
+import Webcam from 'react-webcam';
+import RecordRTC, { invokeSaveAsDialog } from 'recordrtc';
 import { FaPlay, FaStop, FaDownload } from 'react-icons/fa';
 
 const DualCameraApp = () => {
-  const frontVideoRef = useRef(null);
-  const backVideoRef = useRef(null);
+  const frontWebcamRef = useRef(null);
+  const backWebcamRef = useRef(null);
   const canvasRef = useRef(null);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [recordedChunks, setRecordedChunks] = useState([]);
   const [isRecording, setIsRecording] = useState(false);
+  const [recorder, setRecorder] = useState(null);
 
-  useEffect(() => {
-    async function getCameras() {
-      try {
-        const frontStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-        const backStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+  const startRecording = async () => {
+    setIsRecording(true);
 
-        frontVideoRef.current.srcObject = frontStream;
-        backVideoRef.current.srcObject = backStream;
+    // Setup recording streams for both cameras
+    const frontStream = await frontWebcamRef.current.video.srcObject;
+    const backStream = await backWebcamRef.current.video.srcObject;
 
-        // Ensure videos play before attempting to draw them to canvas
-        frontVideoRef.current.onloadedmetadata = () => {
-          frontVideoRef.current.play();
-          drawVideos();
-        };
-        backVideoRef.current.onloadedmetadata = () => {
-          backVideoRef.current.play();
-        };
-
-        // Setup canvas and recorder
-        const canvas = canvasRef.current;
-        const stream = canvas.captureStream();
-        const recorder = new MediaRecorder(stream);
-
-        recorder.ondataavailable = (e) => {
-          if (e.data.size > 0) {
-            setRecordedChunks((prev) => [...prev, e.data]);
-          }
-        };
-
-        setMediaRecorder(recorder);
-      } catch (error) {
-        console.error("Error accessing cameras:", error);
-      }
-    }
-
-    getCameras();
-  }, []);
-
-  const drawVideos = () => {
+    // Setup canvas drawing
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-
-    // Continuously draw video frames to canvas
-    const drawFrame = () => {
+    
+    const drawVideos = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      // Draw back camera full screen
-      ctx.drawImage(backVideoRef.current, 0, 0, canvas.width, canvas.height);
-
-      // Draw front camera in bottom-right corner
+      ctx.drawImage(backWebcamRef.current.video, 0, 0, canvas.width, canvas.height);
       const smallWidth = canvas.width * 0.3;
-      const smallHeight = (frontVideoRef.current.videoHeight / frontVideoRef.current.videoWidth) * smallWidth;
+      const smallHeight = (frontWebcamRef.current.video.videoHeight / frontWebcamRef.current.video.videoWidth) * smallWidth;
       ctx.drawImage(
-        frontVideoRef.current,
+        frontWebcamRef.current.video,
         canvas.width - smallWidth - 10,
         canvas.height - smallHeight - 10,
         smallWidth,
         smallHeight
       );
-
-      requestAnimationFrame(drawFrame);
+      requestAnimationFrame(drawVideos);
     };
 
-    requestAnimationFrame(drawFrame);
-  };
+    requestAnimationFrame(drawVideos);
 
-  const startRecording = () => {
-    setIsRecording(true);
-    setRecordedChunks([]); // Reset recorded chunks
-    mediaRecorder.start();
+    // Create combined stream from the canvas
+    const combinedStream = canvas.captureStream();
+
+    const newRecorder = new RecordRTC(combinedStream, { type: 'video' });
+    newRecorder.startRecording();
+    setRecorder(newRecorder);
   };
 
   const stopRecording = () => {
     setIsRecording(false);
-    mediaRecorder.stop();
-  };
-
-  const downloadVideo = () => {
-    const blob = new Blob(recordedChunks, { type: 'video/webm' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    a.href = url;
-    a.download = 'dual-camera-video.webm';
-    document.body.appendChild(a);
-    a.click();
-    URL.revokeObjectURL(url);
+    recorder.stopRecording(() => {
+      invokeSaveAsDialog(recorder.getBlob(), 'dual-camera-video.webm');
+      setRecorder(null);
+    });
   };
 
   return (
@@ -107,8 +63,21 @@ const DualCameraApp = () => {
         className="w-full rounded-lg shadow-lg bg-black"
       ></canvas>
 
-      <video ref={backVideoRef} style={{ display: 'none' }}></video>
-      <video ref={frontVideoRef} style={{ display: 'none' }}></video>
+      <Webcam
+        ref={backWebcamRef}
+        audio={false}
+        screenshotFormat="image/jpeg"
+        videoConstraints={{ facingMode: { exact: 'environment' } }}
+        style={{ display: 'none' }}
+      />
+
+      <Webcam
+        ref={frontWebcamRef}
+        audio={false}
+        screenshotFormat="image/jpeg"
+        videoConstraints={{ facingMode: 'user' }}
+        style={{ display: 'none' }}
+      />
 
       <div className="flex space-x-4 mt-6">
         {!isRecording ? (
@@ -126,14 +95,6 @@ const DualCameraApp = () => {
             <FaStop className="mr-2" /> Stop Recording
           </button>
         )}
-
-        <button
-          onClick={downloadVideo}
-          className="flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600 transition-colors duration-200"
-          disabled={recordedChunks.length === 0}
-        >
-          <FaDownload className="mr-2" /> Download Video
-        </button>
       </div>
     </div>
   );
