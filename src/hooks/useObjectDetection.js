@@ -1,3 +1,4 @@
+// useObjectDetection.js
 import { useState, useEffect, useRef } from 'react';
 import * as tf from '@tensorflow/tfjs';
 import * as cocoSsd from '@tensorflow-models/coco-ssd';
@@ -26,24 +27,26 @@ const useObjectDetection = () => {
     };
   }, []);
 
-  const detect = async (video) => {
-    if (model && video) {
+  const detect = async (videoElement) => {
+    if (model && videoElement && videoElement.videoWidth > 0 && videoElement.videoHeight > 0) {
       try {
-        const newPredictions = await model.detect(video);
+        const newPredictions = await model.detect(videoElement);
         setPredictions(newPredictions);
-
-        // Check for collisions and trigger vibration
+  
         const hasCollision = checkCollisions(newPredictions);
         if (hasCollision) {
           navigator.vibrate(200);
         }
-
-        requestRef.current = requestAnimationFrame(() => detect(video));
+  
+        requestRef.current = requestAnimationFrame(() => detect(videoElement));
       } catch (error) {
         console.error('Error during object detection:', error);
       }
+    } else {
+      console.warn('Video element not ready or has invalid dimensions.');
+      requestRef.current = requestAnimationFrame(() => detect(videoElement));
     }
-  };
+  };  
 
   const checkCollisions = (predictions) => {
     for (let i = 0; i < predictions.length; i++) {
