@@ -46,12 +46,9 @@ const useObjectDetection = () => {
   };
 
   const checkCollisions = (predictions) => {
-    const targetObjects = ['person', 'sports ball', 'soccer ball'];
-    const detectedObjects = predictions.filter(p => targetObjects.includes(p.class));
-
-    for (let i = 0; i < detectedObjects.length; i++) {
-      for (let j = i + 1; j < detectedObjects.length; j++) {
-        if (doBoxesIntersect(detectedObjects[i].bbox, detectedObjects[j].bbox)) {
+    for (let i = 0; i < predictions.length; i++) {
+      for (let j = i + 1; j < predictions.length; j++) {
+        if (doBoxesIntersect(predictions[i].bbox, predictions[j].bbox)) {
           return true;
         }
       }
