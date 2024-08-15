@@ -1,110 +1,68 @@
-import React, { useRef, useState, useEffect } from 'react';
-import Webcam from 'react-webcam';
-import RecordRTC, { invokeSaveAsDialog } from 'recordrtc';
+import React, { useRef, useState } from 'react';
+import {Camera} from 'react-camera-pro';
 import { FaPlay, FaStop } from 'react-icons/fa';
 
 const DualCameraApp = () => {
-  const frontWebcamRef = useRef(null);
-  const backWebcamRef = useRef(null);
-  const canvasRef = useRef(null);
+  const cameraRef = useRef(null);
   const [isRecording, setIsRecording] = useState(false);
-  const [recorder, setRecorder] = useState(null);
-
-  const drawToCanvas = () => {
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d');
-
-    const drawFrame = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      if (backWebcamRef.current?.video?.readyState === 4) {
-        ctx.drawImage(backWebcamRef.current.video, 0, 0, canvas.width, canvas.height);
-      } else {
-        console.error('Back camera stream is not ready.');
-      }
-
-      if (frontWebcamRef.current?.video?.readyState === 4) {
-        const smallWidth = canvas.width * 0.3;
-        const smallHeight = (frontWebcamRef.current.video.videoHeight / frontWebcamRef.current.video.videoWidth) * smallWidth;
-        ctx.drawImage(
-          frontWebcamRef.current.video,
-          canvas.width - smallWidth - 10,
-          canvas.height - smallHeight - 10,
-          smallWidth,
-          smallHeight
-        );
-      } else {
-        console.error('Front camera stream is not ready.');
-      }
-
-      requestAnimationFrame(drawFrame);
-    };
-
-    requestAnimationFrame(drawFrame);
-  };
+  const [recordedChunks, setRecordedChunks] = useState([]);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
 
   const startRecording = () => {
-    console.log('Attempting to start recording...');
+    const stream = cameraRef.current?.getCameraStream();
+    
+    if (!stream) {
+      console.error("Failed to get camera stream.");
+      return;
+    }
+
+    const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) {
+        setRecordedChunks((prev) => [...prev, event.data]);
+      }
+    };
+
+    recorder.onstop = () => {
+      const blob = new Blob(recordedChunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'dual-camera-video.webm';
+      a.click();
+      URL.revokeObjectURL(url);
+    };
+
+    recorder.start();
+    setMediaRecorder(recorder);
     setIsRecording(true);
-
-    // Start drawing to canvas
-    drawToCanvas();
-
-    const canvasStream = canvasRef.current.captureStream(30);
-    console.log('Canvas stream captured:', canvasStream);
-
-    const newRecorder = new RecordRTC(canvasStream, { type: 'video' });
-
-    newRecorder.startRecording(() => {
-      console.log('Recording started successfully.');
-    });
-
-    setRecorder(newRecorder);
   };
 
   const stopRecording = () => {
-    console.log('Attempting to stop recording...');
-    setIsRecording(false);
-
-    if (recorder) {
-      recorder.stopRecording(() => {
-        console.log('Recording stopped successfully.');
-        invokeSaveAsDialog(recorder.getBlob(), 'dual-camera-video.webm');
-        setRecorder(null);
-      });
+    if (mediaRecorder) {
+      mediaRecorder.stop();
+      setIsRecording(false);
     } else {
-      console.error('Recorder is not initialized.');
+      console.error("No media recorder initialized.");
     }
   };
 
-  useEffect(() => {
-    console.log('Webcams initialized:', frontWebcamRef.current, backWebcamRef.current);
-  }, []);
-
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 p-4">
-      <canvas
-        ref={canvasRef}
-        width={1280}
-        height={720}
-        className="w-full rounded-lg shadow-lg bg-black"
-      ></canvas>
-
-      <Webcam
-        ref={backWebcamRef}
-        audio={false}
-        videoConstraints={{ facingMode: { exact: 'environment' } }}
-        style={{ display: 'none' }}
-        onUserMediaError={(error) => console.error('Back camera error:', error)}
-      />
-
-      <Webcam
-        ref={frontWebcamRef}
-        audio={false}
-        videoConstraints={{ facingMode: 'user' }}
-        style={{ display: 'none' }}
-        onUserMediaError={(error) => console.error('Front camera error:', error)}
-      />
+      <div className="relative w-full max-w-2xl mx-auto aspect-w-16 aspect-h-9">
+        <Camera
+          ref={cameraRef}
+          facingMode="user"
+          numberOfCamerasCallback={(availableCameras) => console.log('Available cameras:', availableCameras)}
+          aspectRatio="cover"
+          errorMessages={{
+            noCameraAccessible: 'No camera device accessible. Please connect your camera or try a different browser.',
+            permissionDenied: 'Permission denied. Please refresh and give camera permission.',
+          }}
+          className="rounded-lg shadow-lg bg-black"
+        />
+      </div>
 
       <div className="flex space-x-4 mt-6">
         {!isRecording ? (
