@@ -24,35 +24,48 @@ const RecordingPage = () => {
     }
   }, [isRecording, detect]);
 
-  const startRecording = () => {
+  const startRecording = async () => {
     setRecordedChunks([]);
     setIsRecording(true);
-
-    const backStream = backCameraRef.current.srcObject;
-    const frontStream = frontCameraRef.current.srcObject;
-
-    const combinedStream = new MediaStream([
-      ...backStream.getVideoTracks(),
-      ...frontStream.getVideoTracks()
-    ]);
-
-    mediaRecorderRef.current = new MediaRecorder(combinedStream, {
-      mimeType: 'video/webm',
-    });
-
-    mediaRecorderRef.current.ondataavailable = handleDataAvailable;
-    mediaRecorderRef.current.start();
-
-    // Stop recording after 30 seconds
-    setTimeout(() => {
-      if (isRecording) {
-        stopRecording();
+  
+    try {
+      const backStream = backCameraRef.current?.srcObject;
+      const frontStream = frontCameraRef.current?.srcObject;
+  
+      if (!backStream || !frontStream) {
+        console.error('Camera streams not ready');
+        setIsRecording(false);
+        return;
       }
-    }, 30000);
+  
+      const combinedStream = new MediaStream([
+        ...backStream.getVideoTracks(),
+        ...frontStream.getVideoTracks()
+      ]);
+  
+      mediaRecorderRef.current = new MediaRecorder(combinedStream, {
+        mimeType: 'video/webm',
+      });
+  
+      mediaRecorderRef.current.ondataavailable = handleDataAvailable;
+      mediaRecorderRef.current.start();
+  
+      // Stop recording after 30 seconds
+      setTimeout(() => {
+        if (isRecording) {
+          stopRecording();
+        }
+      }, 30000);
+    } catch (error) {
+      console.error('Error starting recording:', error);
+      setIsRecording(false);
+    }
   };
 
   const stopRecording = () => {
-    mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
     setIsRecording(false);
   };
 
@@ -92,23 +105,25 @@ const RecordingPage = () => {
 
   return (
     <div className="relative h-screen">
-      {backCamera && (
+    {backCamera && (
+      <div className="absolute inset-0">
         <CameraView
           deviceId={backCamera.deviceId}
           isBackCamera={true}
           ref={backCameraRef}
         />
-      )}
-      
-      <div className="absolute bottom-4 left-4 w-1/4 h-1/4">
-        {frontCamera && (
-          <CameraView
-            deviceId={frontCamera.deviceId}
-            isBackCamera={false}
-            ref={frontCameraRef}
-          />
-        )}
       </div>
+    )}
+    
+    <div className="absolute top-4 right-4 w-1/3 h-1/3 z-10">
+      {frontCamera && (
+        <CameraView
+          deviceId={frontCamera.deviceId}
+          isBackCamera={false}
+          ref={frontCameraRef}
+        />
+      )}
+    </div>
       
       <div className="absolute bottom-4 right-4 flex space-x-4">
         <button
