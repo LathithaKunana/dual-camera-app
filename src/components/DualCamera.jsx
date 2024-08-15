@@ -1,7 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import Webcam from 'react-webcam';
 import RecordRTC, { invokeSaveAsDialog } from 'recordrtc';
-import { FaPlay, FaStop, FaDownload } from 'react-icons/fa';
+import { FaPlay, FaStop } from 'react-icons/fa';
 
 const DualCameraApp = () => {
   const frontWebcamRef = useRef(null);
@@ -10,49 +10,76 @@ const DualCameraApp = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [recorder, setRecorder] = useState(null);
 
-  const startRecording = async () => {
-    setIsRecording(true);
-
-    // Setup recording streams for both cameras
-    const frontStream = await frontWebcamRef.current.video.srcObject;
-    const backStream = await backWebcamRef.current.video.srcObject;
-
-    // Setup canvas drawing
+  const drawToCanvas = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    
-    const drawVideos = () => {
+
+    const drawFrame = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(backWebcamRef.current.video, 0, 0, canvas.width, canvas.height);
-      const smallWidth = canvas.width * 0.3;
-      const smallHeight = (frontWebcamRef.current.video.videoHeight / frontWebcamRef.current.video.videoWidth) * smallWidth;
-      ctx.drawImage(
-        frontWebcamRef.current.video,
-        canvas.width - smallWidth - 10,
-        canvas.height - smallHeight - 10,
-        smallWidth,
-        smallHeight
-      );
-      requestAnimationFrame(drawVideos);
+
+      if (backWebcamRef.current?.video?.readyState === 4) {
+        ctx.drawImage(backWebcamRef.current.video, 0, 0, canvas.width, canvas.height);
+      } else {
+        console.error('Back camera stream is not ready.');
+      }
+
+      if (frontWebcamRef.current?.video?.readyState === 4) {
+        const smallWidth = canvas.width * 0.3;
+        const smallHeight = (frontWebcamRef.current.video.videoHeight / frontWebcamRef.current.video.videoWidth) * smallWidth;
+        ctx.drawImage(
+          frontWebcamRef.current.video,
+          canvas.width - smallWidth - 10,
+          canvas.height - smallHeight - 10,
+          smallWidth,
+          smallHeight
+        );
+      } else {
+        console.error('Front camera stream is not ready.');
+      }
+
+      requestAnimationFrame(drawFrame);
     };
 
-    requestAnimationFrame(drawVideos);
+    requestAnimationFrame(drawFrame);
+  };
 
-    // Create combined stream from the canvas
-    const combinedStream = canvas.captureStream();
+  const startRecording = () => {
+    console.log('Attempting to start recording...');
+    setIsRecording(true);
 
-    const newRecorder = new RecordRTC(combinedStream, { type: 'video' });
-    newRecorder.startRecording();
+    // Start drawing to canvas
+    drawToCanvas();
+
+    const canvasStream = canvasRef.current.captureStream(30);
+    console.log('Canvas stream captured:', canvasStream);
+
+    const newRecorder = new RecordRTC(canvasStream, { type: 'video' });
+
+    newRecorder.startRecording(() => {
+      console.log('Recording started successfully.');
+    });
+
     setRecorder(newRecorder);
   };
 
   const stopRecording = () => {
+    console.log('Attempting to stop recording...');
     setIsRecording(false);
-    recorder.stopRecording(() => {
-      invokeSaveAsDialog(recorder.getBlob(), 'dual-camera-video.webm');
-      setRecorder(null);
-    });
+
+    if (recorder) {
+      recorder.stopRecording(() => {
+        console.log('Recording stopped successfully.');
+        invokeSaveAsDialog(recorder.getBlob(), 'dual-camera-video.webm');
+        setRecorder(null);
+      });
+    } else {
+      console.error('Recorder is not initialized.');
+    }
   };
+
+  useEffect(() => {
+    console.log('Webcams initialized:', frontWebcamRef.current, backWebcamRef.current);
+  }, []);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 p-4">
@@ -66,17 +93,17 @@ const DualCameraApp = () => {
       <Webcam
         ref={backWebcamRef}
         audio={false}
-        screenshotFormat="image/jpeg"
         videoConstraints={{ facingMode: { exact: 'environment' } }}
         style={{ display: 'none' }}
+        onUserMediaError={(error) => console.error('Back camera error:', error)}
       />
 
       <Webcam
         ref={frontWebcamRef}
         audio={false}
-        screenshotFormat="image/jpeg"
         videoConstraints={{ facingMode: 'user' }}
         style={{ display: 'none' }}
+        onUserMediaError={(error) => console.error('Front camera error:', error)}
       />
 
       <div className="flex space-x-4 mt-6">
