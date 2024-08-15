@@ -9,11 +9,8 @@ const useMultiCamera = () => {
   useEffect(() => {
     const getDevices = async () => {
       try {
-        // First, ask for permission
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         setHasPermission(true);
-        
-        // Stop the stream immediately after getting permission
         stream.getTracks().forEach(track => track.stop());
 
         const devices = await navigator.mediaDevices.enumerateDevices();
@@ -23,8 +20,20 @@ const useMultiCamera = () => {
         const front = videoDevices.find(device => device.label.toLowerCase().includes('front'));
         const back = videoDevices.find(device => device.label.toLowerCase().includes('back'));
 
-        setFrontCamera(front || videoDevices[0]);
-        setBackCamera(back || (videoDevices.length > 1 ? videoDevices[1] : videoDevices[0]));
+        if (front && back) {
+          // If both front and back cameras are available
+          setFrontCamera(front);
+          setBackCamera(back);
+        } else if (front) {
+          // Only front camera is available
+          setFrontCamera(front);
+        } else if (back) {
+          // Only back camera is available
+          setBackCamera(back);
+        } else if (videoDevices.length > 0) {
+          // If no front or back is found, use the first available camera
+          setFrontCamera(videoDevices[0]);
+        }
       } catch (error) {
         console.error('Error accessing media devices:', error);
         setHasPermission(false);
@@ -34,7 +43,36 @@ const useMultiCamera = () => {
     getDevices();
   }, []);
 
-  return { devices, frontCamera, backCamera, hasPermission };
+  const getFrontCameraStream = async () => {
+    try {
+      if (frontCamera) {
+        return await navigator.mediaDevices.getUserMedia({ video: { deviceId: frontCamera.deviceId } });
+      }
+    } catch (error) {
+      console.error('Error getting front camera stream:', error);
+    }
+    return null;
+  };
+
+  const getBackCameraStream = async () => {
+    try {
+      if (backCamera) {
+        return await navigator.mediaDevices.getUserMedia({ video: { deviceId: backCamera.deviceId } });
+      }
+    } catch (error) {
+      console.error('Error getting back camera stream:', error);
+    }
+    return null;
+  };
+
+  return {
+    devices,
+    frontCamera,
+    backCamera,
+    hasPermission,
+    getFrontCameraStream,
+    getBackCameraStream,
+  };
 };
 
 export default useMultiCamera;
