@@ -10,6 +10,7 @@ const RecordingPage = () => {
     const [recordedChunks, setRecordedChunks] = useState([]);
     const [previewUrl, setPreviewUrl] = useState('');
     const [showPreview, setShowPreview] = useState(false);
+    const [showCamera, setShowCamera] = useState(false);
   
     const { frontCamera, backCamera, getFrontCameraStream, getBackCameraStream, hasPermission } = useMultiCamera();
     const { detect, predictions } = useObjectDetection();
@@ -31,6 +32,7 @@ const RecordingPage = () => {
       const startRecording = async () => {
         setRecordedChunks([]);
         setIsRecording(true);
+        setShowCamera(true);
       
         const backStream = await getBackCameraStream();
         const frontStream = await getFrontCameraStream();
@@ -71,6 +73,7 @@ const RecordingPage = () => {
     const stopRecording = () => {
       mediaRecorderRef.current.stop();
       setIsRecording(false);
+      setShowCamera(false);
     };
   
     const handleDataAvailable = ({ data }) => {
