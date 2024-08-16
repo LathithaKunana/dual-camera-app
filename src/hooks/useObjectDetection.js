@@ -32,12 +32,14 @@ const useObjectDetection = () => {
       try {
         const newPredictions = await model.detect(videoElement);
         setPredictions(newPredictions);
-  
+
+        // Check for collisions
         const hasCollision = checkCollisions(newPredictions);
         if (hasCollision) {
+          // Trigger vibration on collision
           navigator.vibrate(200);
         }
-  
+
         requestRef.current = requestAnimationFrame(() => detect(videoElement));
       } catch (error) {
         console.error('Error during object detection:', error);
@@ -46,7 +48,7 @@ const useObjectDetection = () => {
       console.warn('Video element not ready or has invalid dimensions.');
       requestRef.current = requestAnimationFrame(() => detect(videoElement));
     }
-  };  
+  };
 
   const checkCollisions = (predictions) => {
     for (let i = 0; i < predictions.length; i++) {
