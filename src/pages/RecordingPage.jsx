@@ -1,9 +1,11 @@
+// RecordingPage.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { CameraIcon, DownloadIcon, EyeIcon } from '@heroicons/react/solid';
 import CameraView from '../components/CameraView';
 import VideoPreview from '../components/VideoPreview';
 import useMultiCamera from '../hooks/useMultiCamera';
 import useObjectDetection from '../hooks/useObjectDetection';
+
 
 const RecordingPage = () => {
   const [isRecording, setIsRecording] = useState(false);
@@ -22,6 +24,12 @@ const RecordingPage = () => {
   useEffect(() => {
     if (isRecording && backCameraRef.current) {
       const videoElement = backCameraRef.current.video;
+      videoElement.onloadeddata = () => {
+        detect(videoElement);
+      };
+    }
+    if (isRecording && frontCameraRef.current) {
+      const videoElement = frontCameraRef.current.video;
       videoElement.onloadeddata = () => {
         detect(videoElement);
       };
@@ -57,7 +65,6 @@ const RecordingPage = () => {
       mediaRecorderRef.current.ondataavailable = handleDataAvailable;
       mediaRecorderRef.current.start();
 
-      // Stop recording after 30 seconds
       setTimeout(() => {
         if (isRecording) {
           stopRecording();
@@ -170,15 +177,17 @@ const RecordingPage = () => {
           key={index}
           style={{
             position: 'absolute',
-            left: prediction.bbox[0],
-            top: prediction.bbox[1],
-            width: prediction.bbox[2],
-            height: prediction.bbox[3],
+            left: `${prediction.bbox[0]}px`,
+            top: `${prediction.bbox[1]}px`,
+            width: `${prediction.bbox[2]}px`,
+            height: `${prediction.bbox[3]}px`,
             border: '2px solid red',
             backgroundColor: 'rgba(255, 0, 0, 0.2)',
             zIndex: 10,
           }}
-        />
+        >
+          <p className="text-white">{prediction.class}</p>
+        </div>
       ))}
     </div>
   );
