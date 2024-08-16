@@ -118,7 +118,10 @@ const RecordingPage = () => {
   }, [recordedChunks, isRecording]);
 
   return (
-    <div className="relative h-screen">
+    <div className="relative items-center justify-center flex h-screen bg-blue-950">
+      <div className='flex p-6 items-center justify-center '>
+        <h1 className='text-4xl font-semibold text-center text-neutral-300'> Collision Detector App </h1>
+      </div>
       {showCamera && backCamera && (
         <CameraView
           deviceId={backCamera.deviceId}
@@ -129,7 +132,7 @@ const RecordingPage = () => {
       )}
 
       {showCamera && frontCamera && (
-        <div className="absolute bottom-4 left-4 w-1/4 h-1/4">
+        <div className="absolute w-full h-screen">
           <CameraView
             deviceId={frontCamera.deviceId}
             isBackCamera={false}
