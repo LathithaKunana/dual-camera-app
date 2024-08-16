@@ -36,8 +36,12 @@ const useObjectDetection = () => {
         // Check for collisions
         const hasCollision = checkCollisions(newPredictions);
         if (hasCollision) {
-          // Trigger vibration on collision
-          navigator.vibrate(200);
+          console.log('Collision detected! Triggering vibration...');
+          if (navigator.vibrate) {
+            navigator.vibrate(200);  // Vibrate for 200 milliseconds
+          } else {
+            console.warn('Vibration API not supported on this device.');
+          }
         }
 
         requestRef.current = requestAnimationFrame(() => detect(videoElement));
