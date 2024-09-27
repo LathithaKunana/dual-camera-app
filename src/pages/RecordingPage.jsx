@@ -1,62 +1,60 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { CameraIcon, DownloadIcon, EyeIcon } from '@heroicons/react/solid'; // Icons for UI
-import CameraView from '../components/CameraView'; // Component to display camera feed
-import VideoPreview from '../components/VideoPreview'; // Component to show video preview
-import useMultiCamera from '../hooks/useMultiCamera'; // Custom hook for handling multiple cameras
-import useObjectDetection from '../hooks/useObjectDetection'; // Custom hook for object detection
+import { CameraIcon, DownloadIcon, EyeIcon } from '@heroicons/react/solid';
+import CameraView from '../components/CameraView';
+import VideoPreview from '../components/VideoPreview';
+import useMultiCamera from '../hooks/useMultiCamera';
+import useObjectDetection from '../hooks/useObjectDetection';
 
 const RecordingPage = () => {
-  // State to manage recording status
   const [isRecording, setIsRecording] = useState(false);
-
-  // State to store recorded video chunks
   const [recordedChunks, setRecordedChunks] = useState([]);
-
-  // State to manage video preview URL
   const [previewUrl, setPreviewUrl] = useState('');
-
-  // State to toggle video preview visibility
   const [showPreview, setShowPreview] = useState(false);
-
-  // State to control camera view visibility
   const [showCamera, setShowCamera] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
 
-  // Hooks to get camera information and object detection functionality
   const { frontCamera, backCamera, getFrontCameraStream, getBackCameraStream } = useMultiCamera();
   const { detect, predictions } = useObjectDetection();
 
-  // Refs to access the video elements for each camera
   const mediaRecorderRef = useRef(null);
   const backCameraRef = useRef(null);
   const frontCameraRef = useRef(null);
+  const timerRef = useRef(null);
 
-  // Effect to start object detection when recording starts
   useEffect(() => {
-    if (isRecording && backCameraRef.current) {
-      const videoElement = backCameraRef.current.video;
-      videoElement.onloadeddata = () => {
-        detect(videoElement);
-      };
-    }
-    if (isRecording && frontCameraRef.current) {
-      const videoElement = frontCameraRef.current.video;
-      videoElement.onloadeddata = () => {
-        detect(videoElement);
-      };
+    if (isRecording) {
+      if (backCameraRef.current) {
+        detect(backCameraRef.current.video);
+      }
+      if (frontCameraRef.current) {
+        detect(frontCameraRef.current.video);
+      }
     }
   }, [isRecording, detect]);
 
-  // Function to start recording from both cameras
+  useEffect(() => {
+    if (recordingTime === 15) {
+      showAlert();
+    }
+  }, [recordingTime]);
+
+  const showAlert = () => {
+    alert('15 seconds of recording completed!');
+  };
+
   const startRecording = async () => {
     setRecordedChunks([]);
     setIsRecording(true);
     setShowCamera(true);
+    setRecordingTime(0);
 
-    // Get streams from both cameras
+    timerRef.current = setInterval(() => {
+      setRecordingTime((prev) => prev + 1);
+    }, 1000);
+
     const backStream = await getBackCameraStream();
     const frontStream = await getFrontCameraStream();
 
-    // Combine streams if both cameras are available
     let combinedStream;
 
     if (backStream && frontStream) {
@@ -71,7 +69,6 @@ const RecordingPage = () => {
     }
 
     if (combinedStream) {
-      // Initialize MediaRecorder with combined or single stream
       mediaRecorderRef.current = new MediaRecorder(combinedStream, {
         mimeType: 'video/webm',
       });
@@ -79,7 +76,6 @@ const RecordingPage = () => {
       mediaRecorderRef.current.ondataavailable = handleDataAvailable;
       mediaRecorderRef.current.start();
 
-      // Automatically stop recording after 30 seconds
       setTimeout(() => {
         if (isRecording) {
           stopRecording();
@@ -92,21 +88,22 @@ const RecordingPage = () => {
     }
   };
 
-  // Function to stop recording
   const stopRecording = () => {
-    mediaRecorderRef.current.stop();
+    if (mediaRecorderRef.current) {
+      mediaRecorderRef.current.stop();
+    }
     setIsRecording(false);
     setShowCamera(false);
+    clearInterval(timerRef.current);
+    // Note: We don't need to explicitly clear predictions as the useObjectDetection hook handles this
   };
 
-  // Handler for storing recorded data chunks
   const handleDataAvailable = ({ data }) => {
     if (data.size > 0) {
       setRecordedChunks((prev) => prev.concat(data));
     }
   };
 
-  // Function to handle video download
   const handleDownload = () => {
     if (recordedChunks.length) {
       const blob = new Blob(recordedChunks, {
@@ -124,7 +121,6 @@ const RecordingPage = () => {
     }
   };
 
-  // Effect to update preview URL when recording stops and chunks are available
   useEffect(() => {
     if (recordedChunks.length > 0 && !isRecording) {
       const blob = new Blob(recordedChunks, {
@@ -136,13 +132,22 @@ const RecordingPage = () => {
     }
   }, [recordedChunks, isRecording]);
 
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}:${remainingSeconds
+      .toString()
+      .padStart(2, '0')}`;
+  };
+
   return (
     <div className="relative items-center justify-center flex h-screen bg-blue-950">
-      <div className='flex p-6 items-center justify-center'>
-        <h1 className='text-4xl font-semibold text-center text-neutral-300'>Collision Detector App</h1>
+      <div className="flex p-6 items-center justify-center">
+        <h1 className="text-4xl font-semibold text-center text-neutral-300">
+          Collision Detector App
+        </h1>
       </div>
-      
-      {/* Camera view components */}
+
       {showCamera && backCamera && (
         <CameraView
           deviceId={backCamera.deviceId}
@@ -152,7 +157,7 @@ const RecordingPage = () => {
         />
       )}
       {showCamera && frontCamera && (
-        <div className="absolute w-full h-screen">
+        <div className="absolute w-1/2">
           <CameraView
             deviceId={frontCamera.deviceId}
             isBackCamera={false}
@@ -161,8 +166,7 @@ const RecordingPage = () => {
         </div>
       )}
 
-      {/* Control buttons */}
-      <div className="absolute bottom-4 right-4 flex space-x-4">
+      <div className="absolute bottom-4 flex space-x-4">
         <button
           onClick={isRecording ? stopRecording : startRecording}
           className={`${
@@ -189,16 +193,17 @@ const RecordingPage = () => {
         )}
       </div>
 
-      {/* Video preview component */}
-      {showPreview && (
-        <VideoPreview
-          videoUrl={previewUrl}
-          onClose={() => setShowPreview(false)}
-        />
+      {isRecording && (
+        <div className="absolute flex top-5 bg-black text-white p-2 rounded">
+          Recording Time: {formatTime(recordingTime)}
+        </div>
       )}
 
-      {/* Object detection predictions display */}
-      {predictions.map((prediction, index) => (
+      {showPreview && (
+        <VideoPreview videoUrl={previewUrl} onClose={() => setShowPreview(false)} />
+      )}
+
+      {isRecording && predictions.map((prediction, index) => (
         <div
           key={index}
           style={{
