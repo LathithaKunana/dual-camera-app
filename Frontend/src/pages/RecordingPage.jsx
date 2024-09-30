@@ -165,7 +165,7 @@ const RecordingPage = ({ uploadedImages }) => {
 
       // Send video URL and selected images to the backend
       const backendResponse = await axios.post(
-        "http://localhost:5000/api/process-video",
+        "https://dual-camera-app.vercel.app/api/process-video",
         {
           videoUrl,
           images: selected,
