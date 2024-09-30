@@ -171,7 +171,7 @@ const RecordingPage = ({ uploadedImages }) => {
           images: selected,
           duration: videoDuration,
         }
-      )
+      );
 
       // Set the processed video URL from backend
       const processedVideoUrl = backendResponse.data.processedVideoUrl;
